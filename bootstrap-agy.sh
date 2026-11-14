@@ -75,21 +75,33 @@ if [ "${version}" != "${MAGPIE_AGY_CLI_VERSION}" ]; then
   exit 65
 fi
 
-# Registration is additive: every other entry survives, and an entry already
-# pointing at this spec makes the whole step a no-op.
-if [ ! -f "${REGISTRY}" ]; then
-  printf '{"plugins":[{"spec":"%s"}]}\n' "${SPEC}" > "${REGISTRY}"
-elif grep -q "\"spec\"[[:space:]]*:[[:space:]]*\"${SPEC}\"" "${REGISTRY}"; then
-  :
-else
-  # Drop any other agy-cli spec, then append this one inside the plugins array.
-  sed -i '\|"spec"[[:space:]]*:[[:space:]]*"/config/plugins-[0-9a-f]*/packages/agy-cli"|d' "${REGISTRY}"
-  sed -i "s|\]}|,{\"spec\":\"${SPEC}\"}]}|" "${REGISTRY}"
-  grep -q "\"spec\"[[:space:]]*:[[:space:]]*\"${SPEC}\"" "${REGISTRY}" || {
-    echo "could not register ${SPEC} in ${REGISTRY}; leaving it untouched" >&2
-    exit 66
-  }
-fi
+# Initialize Magpie's bundled runtime using a separate registry.
+scratch="$(mktemp -d)"
+trap 'rm -rf "${scratch}"' EXIT
+XDG_CONFIG_HOME="${scratch}" /magpie plugin add "${SPEC}" >/dev/null 2>&1
+bun="$(find "${XDG_CACHE_HOME:-/config/cache}/magpie/bun" -type f -name magpie-bun | sort | tail -1)"
+test -x "${bun}"
+"${bun}" -e '
+const fs = require("node:fs");
+const [file, spec] = process.argv.slice(1);
+const data = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {plugins: []};
+if (!Array.isArray(data.plugins)) throw new Error("invalid plugin registry");
+const match = /^\/config\/plugins-[0-9a-f]{40}\/packages\/agy-cli$/;
+const previous = data.plugins.filter(p => typeof p.spec === "string" && match.test(p.spec));
+if (previous.length > 1) throw new Error("multiple agy-cli entries");
+const entry = previous.length ? {...previous[0], spec} : {spec};
+data.plugins = data.plugins.filter(p => !(typeof p.spec === "string" && match.test(p.spec)));
+data.plugins.push(entry);
+const tmp = file + ".tmp." + process.pid;
+try {
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n", {mode: 0o600, flag: "wx"});
+  fs.renameSync(tmp, file);
+} finally {
+  try { fs.unlinkSync(tmp); } catch (e) { if (e.code !== "ENOENT") throw e; }
+}
+' "${REGISTRY}" "${SPEC}"
+rm -rf "${scratch}"
+trap - EXIT
 
 cd /config
 exec /magpie serve
