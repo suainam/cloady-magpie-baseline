@@ -1,21 +1,27 @@
 # Shared Magpie release for Cloady workspaces.
 #
-# No version is hardcoded: the image digest and every agy / agy-cli value are
-# injected from the workspace variables, so a release bump is a variables-only
-# change. Cloady redeploys the container, the `config` volume survives, and
-# bootstrap-agy.sh reconciles agy and agy-cli in place. Nothing is rebuilt.
+# Runs the upstream Magpie image unchanged: the entrypoint fetches the pinned
+# bootstrap script and executes it, so /config is reconciled to the declared agy
+# and agy-cli release on every start. No custom image is built or published.
 #
-# The upstream image ships no node/python/wget, so bootstrap-agy.sh runs as POSIX sh
-# and the healthcheck uses the image's own /magpie binary. Cloady builds from this
-# repository, so the script is present in the produced image at build time.
+# The upstream image ships sh, curl, tar, sed, grep, sha256sum and sha512sum, so
+# the bootstrap needs no package install and the healthcheck uses /magpie itself.
 services:
   magpie:
-    # Pin the image by digest. A release bump edits this line together with the
-    # MAGPIE_AGY_* variables in the workspace; the config volume survives.
+    # Pin the image by digest. A release bump edits this line and the
+    # MAGPIE_AGY_* variables; the `config` volume survives.
     image: ghcr.io/yetone/magpie@sha256:6df9c76c9d07ad8cdd966abef1449a107e6ee136b001d6a7097f5403669f602b
-    # Dockerfile sets ENTRYPOINT to the bootstrap, so the image's own
-    # Entrypoint/Cmd are replaced here; nothing else is overridden.
-    entrypoint: ["/bin/sh", "/usr/local/bin/bootstrap-agy.sh"]
+    # The script is fetched at a fixed commit, so a later repository change
+    # cannot alter what this release runs. Bump the commit together with the
+    # agy values, after the new script passes the restart tests.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        curl -fsSL --retry 3 -o /tmp/bootstrap-agy.sh \
+          "https://raw.githubusercontent.com/suainam/cloady-magpie-baseline/1563e75/bootstrap-agy.sh"
+        exec /bin/sh /tmp/bootstrap-agy.sh
     ports:
       - "3425:3425"
     expose:
