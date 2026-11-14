@@ -21,14 +21,14 @@ for name in MAGPIE_AGY_VERSION MAGPIE_AGY_DOWNLOAD_URL MAGPIE_AGY_SHA512 \
 done
 
 AGY_DIR=/config/bin/agy-${MAGPIE_AGY_VERSION}
-AGY=${AGY_DIR}/antigravity
+AGY_STAGE=/config/bin/.agy-stage
+AGY=${AGY_STAGE}/antigravity
 AGY_ARCHIVE=/config/artifacts/agy-${MAGPIE_AGY_VERSION}.tar.gz
 PLUGIN_SRC=/config/plugins-${MAGPIE_AGY_CLI_COMMIT}
 PLUGIN_ARCHIVE=/config/artifacts/plugin-${MAGPIE_AGY_CLI_COMMIT}.tar.gz
-REGISTRY=/config/magpie/plugins.json
 SPEC=/config/plugins-${MAGPIE_AGY_CLI_COMMIT}/packages/agy-cli
 PACKAGE_VERSION=${PLUGIN_SRC}/packages/agy-cli/.release-version
-
+REGISTRY=/config/magpie/plugins.json
 mkdir -p "${AGY_DIR}" /config/artifacts /config/home/.local/bin /config/magpie
 
 # agy: reuse the volume copy while its checksum matches, otherwise verify and replace.
@@ -37,12 +37,16 @@ if [ ! -f "${AGY_ARCHIVE}" ] || [ "$(sha512sum "${AGY_ARCHIVE}" | cut -d' ' -f1)
   trap 'rm -f "${tmp}"' EXIT
   curl -fsSL --retry 3 -o "${tmp}" "${MAGPIE_AGY_DOWNLOAD_URL}"
   echo "${MAGPIE_AGY_SHA512}  ${tmp}" | sha512sum -c -
-  rm -f "${AGY}"
-  tar -xzf "${tmp}" -C "${AGY_DIR}"
-  mv -f "${AGY_DIR}/antigravity" "${AGY}"
+  rm -rf "${AGY_STAGE}"
+  mkdir -p "${AGY_STAGE}"
+  tar -xzf "${tmp}" -C "${AGY_STAGE}"
+  chmod 0755 "${AGY}"
   rm -f "${tmp}"
   trap - EXIT
 fi
+mkdir -p "${AGY_DIR}"
+mv -f "${AGY}" "${AGY_DIR}/antigravity"
+AGY="${AGY_DIR}/antigravity"
 ln -sf "${AGY}" /config/home/.local/bin/agy
 
 # agy-cli: same, verified against the declared commit archive.
