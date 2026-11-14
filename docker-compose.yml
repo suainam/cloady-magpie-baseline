@@ -20,7 +20,7 @@ services:
       - |
         set -eu
         curl -fsSL --retry 3 -o /tmp/bootstrap-agy.sh \
-          "https://raw.githubusercontent.com/suainam/cloady-magpie-baseline/1563e75/bootstrap-agy.sh"
+          "https://raw.githubusercontent.com/suainam/cloady-magpie-baseline/c1b8beddbd3a99804a0a2ba15d5014f2e55dccac/bootstrap-agy.sh"
         exec /bin/sh /tmp/bootstrap-agy.sh
     ports:
       - "3425:3425"
