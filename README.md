@@ -23,11 +23,13 @@ matches the declared release:
   `/config/home/.local/bin/agy`.
 - agy-cli: same against the declared commit archive, then require the staged
   `package.json` version to equal `MAGPIE_AGY_CLI_VERSION`, failing closed otherwise.
-- `plugins.json`: the declared agy-cli entry is added or replaced in place and every
-  other entry is preserved, so plugins added later survive each redeploy.
+- `plugins.json`: updated with Magpie's bundled bun runtime as JSON. Other plugin
+  entries, their `off` state and top-level fields survive; a registry with duplicate
+  old agy-cli entries is rejected without being written (fail closed).
 
-The image ships only `sh`, `curl`, `tar`, `sha512sum` and `sha256sum`; the script is
-POSIX sh and must not depend on `node`, `python3` or `wget`.
+The image ships `sh`, `curl`, `tar`, `sed`, `grep`, `sha512sum`, `sha256sum` and its
+bundled bun runtime; the script is POSIX sh and must not depend on `node`, `python3`
+or `wget`.
 
 ## Deploy
 
@@ -59,10 +61,36 @@ curl -X POST "$API/workspaces/<ws>/deploy" -H "Authorization: Bearer $TOKEN" \
 
 ## Updating a release
 
-Change the workspace variable values, then redeploy. Nothing is deleted; `/config`
-keeps the agy binary, the plugin source and every other plugin entry.
+1. Update the shared values in the control repo's `inventories/group_vars/all/versions.yml`
+   (`magpie_release_image`, `magpie_agy_*`, `magpie_agy_cli_*`).
+2. Update this repository's compose: the image digest line and the bootstrap commit in
+   the entrypoint URL. Both are pins; a release bump edits exactly these two lines.
+3. Push, then redeploy the app (the platform does this automatically when auto update
+   is on). Verify inside the container: `agy --version`, the plugin spec,
+   `/magpie healthcheck`.
+
+Never publish a bootstrap commit that has not passed the local restart tests against
+the pinned upstream image (fresh volume, existing registry with other plugins,
+duplicate-entry rejection).
+
+## Known platform behavior
+
+- The first deploy of this app also built the repo root and left an `app` deployment
+  that crashloops. The compose declares `app` with `deploy.replicas: 0` to stop it;
+  remove that block once the deployment is gone.
+- No registry push rights for `ghcr.io` or Docker Hub are configured, so this repo
+  must never grow a root `Dockerfile` that the platform would build.
+- Deleting the app permanently deletes the `config` volume (agy sign-in state,
+  plugin state). Treat it as the last resort only.
+
+## Control-plane documentation
+
+The operator-facing SOP lives in the control repo:
+`docs/operations/instabox-magpie.md` (section "Cloady 托管基线") links back here.
+Asset, backup and restore boundaries are in `docs/cloady-operations.md`.
 
 ## Ports
 
 `3425` is the gateway (published). `3430` is the web UI, `expose` only. Nothing else
 is published.
+
