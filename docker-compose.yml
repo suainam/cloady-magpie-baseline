@@ -10,7 +10,9 @@
 # repository, so the script is present in the produced image at build time.
 services:
   magpie:
-    image: ${MAGPIE_IMAGE}
+    # Pin the image by digest. A release bump edits this line together with the
+    # MAGPIE_AGY_* variables in the workspace; the config volume survives.
+    image: ghcr.io/yetone/magpie@sha256:6df9c76c9d07ad8cdd966abef1449a107e6ee136b001d6a7097f5403669f602b
     # Dockerfile sets ENTRYPOINT to the bootstrap, so the image's own
     # Entrypoint/Cmd are replaced here; nothing else is overridden.
     entrypoint: ["/bin/sh", "/usr/local/bin/bootstrap-agy.sh"]
