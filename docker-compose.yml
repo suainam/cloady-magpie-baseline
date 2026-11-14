@@ -46,5 +46,13 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s
+  app:
+    # First-deploy leftover: the platform built the repo root alongside the compose
+    # service and kept an `app` deployment that crashloops. Declaring it with
+    # replicas 0 stops it; remove this block once the deployment is gone.
+    image: busybox:1.37
+    command: ["true"]
+    deploy:
+      replicas: 0
 volumes:
   config:
