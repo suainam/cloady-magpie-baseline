@@ -1,0 +1,37 @@
+# Shared Magpie release for Cloady workspaces.
+#
+# Version values are injected from the workspace's variables (see README). The
+# image is pinned by digest, so a redeploy never silently moves. Updating a release
+# is a variables-only change in the Cloady dashboard (or an API `values` update):
+# the container is recreated, the `config` volume survives, and bootstrap-agy.sh
+# reconciles agy and agy-cli in place. Nothing here is ever deleted or rebuilt.
+services:
+  magpie:
+    image: ${MAGPIE_IMAGE}
+    command: ["/usr/local/bin/bootstrap-agy.sh"]
+    ports:
+      - "3425:3425"
+    expose:
+      - "3430"
+    volumes:
+      - config:/config
+    environment:
+      MAGPIE_IMAGE: ${MAGPIE_IMAGE}
+      MAGPIE_AGY_VERSION: ${MAGPIE_AGY_VERSION}
+      MAGPIE_AGY_DOWNLOAD_URL: ${MAGPIE_AGY_DOWNLOAD_URL}
+      MAGPIE_AGY_SHA512: ${MAGPIE_AGY_SHA512}
+      MAGPIE_AGY_CLI_VERSION: ${MAGPIE_AGY_CLI_VERSION}
+      MAGPIE_AGY_CLI_COMMIT: ${MAGPIE_AGY_CLI_COMMIT}
+      MAGPIE_AGY_CLI_SHA256: ${MAGPIE_AGY_CLI_SHA256}
+      MAGPIE_ADDR: 0.0.0.0:3425
+      MAGPIE_WEB_ADDR: 0.0.0.0:3430
+      MAGPIE_WEB_KEY: ${MAGPIE_WEB_KEY}
+      AGY_PATH: /config/home/.local/bin/agy
+      AGY_CLI_DISABLE_AUTO_UPDATE: "true"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3425/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+volumes:
+  config:
